@@ -15,7 +15,6 @@ jupyter:
 ```python
 import sys
 sys.path.append("../")
-from src.utils import search_book, check_availability
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -81,32 +80,11 @@ driver.quit()
 ```
 
 ```python
-
-```
-
-```python
 driver.page_source
 ```
 
 ```python
-
-```
-
-```python
 previous_searches = {}
-```
-
-```python
-title = input("Enter the book title to search (or 'exit' to quit): ")
-if title != "exit":
-    library = "LE PREVOST - Adultes"
-
-    # Check if the book has been searched before
-    if title in previous_searches:
-        check_availability(previous_searches[title], library)
-    else:
-        search_book(title, library, previous_searches)
-
 ```
 
 ```python

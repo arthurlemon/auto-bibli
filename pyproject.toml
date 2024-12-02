@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "auto-bibli"
+name = "scraping"
 version = "0.1.0"
 description = ""
 authors = ["arthurlemon <coucou@example.com>"]
