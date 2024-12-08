@@ -12,6 +12,9 @@ requests = "^2.32.3"
 selenium = "^4.26.1"
 beautifulsoup4 = "^4.12.3"
 webdriver-manager = "^4.0.2"
+selectolax = "^0.3.26"
+pydantic = "^2.10.3"
+playwright = "^1.49.0"
 
 
 [tool.poetry.group.notebook.dependencies]
