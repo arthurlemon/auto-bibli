@@ -83,7 +83,7 @@ class CentrisBienParser:
         return adresse
 
     def extract_annee_construction(self) -> int | None:
-        return self.carac_data.get("Annee de construction")
+        return self.carac_data.get("Année de construction")
 
     def extract_superficie_terrain(self) -> int | None:
         return self.carac_data.get("Superficie du terrain")
@@ -103,7 +103,7 @@ class CentrisBienParser:
     def extract_utilisation(self) -> str | None:
         return self.carac_data.get("Utilisation")
 
-    def extract_nombre_unités(self) -> int | None:
+    def extract_nombre_unites(self) -> int | None:
         nb_units_text = self.carac_data.get("Nombre d'unites")
         match_unités = re.search(r"\((\d+)\)", nb_units_text)
         nombre_unites = int(match_unités.group(1)) if match_unités else None
@@ -111,8 +111,10 @@ class CentrisBienParser:
 
     def extract_unites(self) -> list[str]:
         units_text = self.carac_data.get("Unité résidentielle")
-        unites = [unit.strip() for unit in units_text.split(",")]
-        return unites
+        if units_text is not None:
+            unites = [unit.strip() for unit in units_text.split(",")]
+            return unites
+        return []
 
     def extract_stationnement(self) -> int:
         stationnement_total = self.carac_data.get("Stationnement total")
@@ -121,6 +123,41 @@ class CentrisBienParser:
         match_garage = re.search(r"Garage \((\d+)\)", garage_text)
         garage = int(match_garage.group(1)) if match_garage else 0
         return int(stationnement_total) + int(garage)
+
+    def extract_total_taxes(self) -> int | None:
+        # Locate the specific row in the taxes table
+        taxes_total_row = self.tree.css_first(
+            "div.financial-details-table-yearly tfoot tr.financial-details-table-total"
+        )
+        if taxes_total_row:
+            taxes_total_value = taxes_total_row.css_first(
+                "td.font-weight-bold.text-right"
+            )
+            if taxes_total_value:
+                taxes_total_text = taxes_total_value.text().strip()
+                return int(re.sub(r"[^0-9]", "", taxes_total_text))
+        return None
+
+    def extract_eval_municipale(self) -> int | None:
+        eval_row = self.tree.css_first("tr.financial-details-table-total")
+        if eval_row:
+            eval_municipal_value = eval_row.css_first("td.font-weight-bold.text-right")
+            if eval_municipal_value:
+                eval_municipale_text = eval_municipal_value.text().strip()
+                return int(re.sub(r"[^0-9]", "", eval_municipale_text))
+        return None
+
+    def extract_additional_characteristics(self) -> str | None:
+        additional_characteristics_row = self.tree.css_first(
+            'div.carac-container:has(.carac-title:contains("Caractéristiques additionnelles"))'
+        )
+        if additional_characteristics_row:
+            characteristics_value = additional_characteristics_row.css_first(
+                ".carac-value span"
+            )
+            if characteristics_value:
+                return characteristics_value.text().strip()
+        return None
 
     def _get_carac_data(self):
         """Extract data stored as carac containers in the HTML."""
