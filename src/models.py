@@ -1,12 +1,6 @@
 import re
 from pydantic import BaseModel, field_validator
-from enum import Enum
 from urllib.parse import urlparse
-
-
-class Utilisation(str, Enum):
-    Résidentiel = "Résidentiel"
-    Commercial = "Commercial"
 
 
 class CentrisUrl(BaseModel):
@@ -47,22 +41,25 @@ class CustomDateFormat(BaseModel):
 
 
 class BienCentrisDuplex(BaseModel):
-    centris_id: int
     url: CentrisUrl
-    adresse: str
-    ville: str
-    quartier: str
+    centris_id: int
+    title: str
     annee_construction: int
-    utilisation: Utilisation | list[Utilisation] | None = None
+    description: str | None = None
+    unites: list[str] | None = None
+    nombre_unites: int | None = None
     superficie_habitable: int | None = None  # pc
     superficie_batiment: int | None = None  # pc
     superficie_commerce: int | None = None  # pc
     superficie_terrain: int | None = None  # pc
-    garage: int = 0
+    stationnement: int | None = None
+    utilisation: str | None = None
+    style_batiment: str | None = None
+    adresse: str
+    ville: str
+    quartier: str
     prix: int
-    eval_municipale: int
-    taxes: int
-    frais: int = 0
     revenus: int | None = None
-    description: str | None = None
+    taxes: int | None = None
+    eval_municipale: int | None = None
     date_scrape: CustomDateFormat
