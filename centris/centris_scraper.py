@@ -211,15 +211,27 @@ class CentrisBienParser:
 
     @property
     def stationnement(self) -> int:
-        stationnement_total = self.carac_data.get("Stationnement total")
-        if stationnement_total is not None:
-            return len(stationnement_total.split(","))
+        try:
+            # Retrieve 'Stationnement total' value
+            stationnement_total = self.carac_data.get("Stationnement total")
+            total_stationnement = (
+                len(stationnement_total.split(",")) if stationnement_total else 0
+            )
 
-        garage_text = self.carac_data.get("Garage")
-        match_garage = re.search(r"Garage \((\d+)\)", garage_text)
-        garage = int(match_garage.group(1)) if match_garage else 0
+            # Retrieve 'Garage' text
+            garage_text = self.carac_data.get("Garage")
+            garage = 0
+            if garage_text:
+                match_garage = re.search(r"Garage \((\d+)\)", garage_text)
+                garage = int(match_garage.group(1)) if match_garage else 0
 
-        return int(stationnement_total) + int(garage)
+            # Return the total number of stationnements
+            return total_stationnement + garage
+
+        except Exception as e:
+            # Log the error and return a default value
+            print(f"Error calculating stationnement: {e}")
+            return 0
 
     @property
     def total_taxes(self) -> int | None:
@@ -317,7 +329,7 @@ class CentrisScraper:
             print(f"Error finding/clicking {selector}: {e}")
             return None
 
-    def navigate_centris(self, num_pages: int = 5, headless: bool = True) -> list[str]:
+    def scrape_urls(self, num_pages: int = 5, headless: bool = True) -> list[str]:
         """
         Navigate through Centris pages and collect URLs.
 
@@ -331,12 +343,25 @@ class CentrisScraper:
 
         with sync_playwright() as playwright:
             try:
-                # Use context manager for browser to ensure proper cleanup
                 browser = playwright.chromium.launch(
                     headless=headless, channel="chrome"
                 )
                 page = browser.new_page()
                 page.goto(self.start_url)
+
+                # Handle cookie consent popup
+                try:
+                    accept_button = page.query_selector(
+                        "button#didomi-notice-agree-button"
+                    )
+                    if accept_button:
+                        print(
+                            "Cookie consent popup found. Clicking 'Accepter et continuer'."
+                        )
+                        accept_button.click()
+                        page.wait_for_load_state("networkidle")
+                except Exception as e:
+                    print(f"No cookie consent popup found or error clicking: {e}")
 
                 # Navigate to first duplex
                 first_duplex_url = self._wait_and_click(page, "a#ButtonViewSummary")
@@ -345,7 +370,6 @@ class CentrisScraper:
 
                 # Navigate subsequent pages
                 for i in range(1, num_pages):
-                    # Use a more robust page load wait
                     page.wait_for_load_state("networkidle")
 
                     # Get current page URL
@@ -353,14 +377,12 @@ class CentrisScraper:
                     print(f"URL {i}: {current_url}")
                     fetched_urls.append(current_url)
 
-                    # Try to find and click next button
                     try:
                         next_button = page.query_selector("li.next a")
                         if not next_button:
                             print("No more pages to navigate.")
                             break
 
-                        # Use Playwright's built-in navigation instead of manual sleep
                         with page.expect_navigation(wait_until="networkidle"):
                             next_button.click()
 

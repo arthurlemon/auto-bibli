@@ -1,15 +1,11 @@
 from datetime import datetime
-from centris.centris_scraper import CentrisBienParser
+from centris.centris_scraper import CentrisBienParser, CentrisScraper
 from centris import Session
 
-scrape_date = datetime.now()
 
-
-def get_urls():
-    # getting URL to scrapes
-    urls = [
-        "https://www.centris.ca/fr/triplex~a-vendre~montreal-ahuntsic-cartierville/19418151?view=Summary"
-    ]
+def get_urls(num_pages=2):
+    scraper = CentrisScraper()
+    urls = scraper.scrape_urls(headless=False, num_pages=num_pages)
     return urls
 
 
@@ -25,3 +21,10 @@ def scrape(urls):
 def save_to_db(db_entries):
     with Session.begin() as session:
         session.add_all(db_entries)
+
+
+if __name__ == "__main__":
+    scrape_date = datetime.now()
+    urls = get_urls(num_pages=3)
+    db_entries = scrape(urls)
+    save_to_db(db_entries)
