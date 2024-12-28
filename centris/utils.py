@@ -3,6 +3,7 @@ import re
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
+from datetime import datetime
 
 
 def set_driver():
@@ -63,3 +64,8 @@ def extract_data_from_url(url):
     except Exception as e:
         print(f"Error parsing URL: {e}")
         return None
+
+
+# Helper function to generate the default date
+def get_default_date():
+    return datetime.now().strftime("%Y-%m-%d")

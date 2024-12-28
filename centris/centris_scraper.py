@@ -4,6 +4,11 @@ from selectolax.parser import HTMLParser
 from collections import namedtuple
 from functools import cached_property
 from playwright.sync_api import sync_playwright, Page
+from playwright.async_api import async_playwright
+from centris.data_models import PlexCentrisListing
+from centris.db_models import PlexCentrisListingDB
+from centris.mappers import map_bien_centris_to_orm
+from datetime import datetime
 
 
 START_URL_PLEX = "https://www.centris.ca/fr/plex~a-vendre~montreal?view=Thumbnail"
@@ -16,6 +21,35 @@ class CentrisBienParser:
 
     def __init__(self, url) -> None:
         self.url = url
+
+    def get_data(self, scrape_date: datetime) -> PlexCentrisListing:
+        return PlexCentrisListing(
+            url=self.url,
+            centris_id=self.centris_id,
+            title=self.title,
+            annee_construction=self.annee_construction,
+            description=self.description,
+            unites=self.unites,
+            nombre_unites=self.nombre_unites,
+            superficie_habitable=self.superficie_habitable,
+            superficie_batiment=self.superficie_batiment,
+            superficie_commerce=self.superficie_commerce,
+            superficie_terrain=self.superficie_terrain,
+            stationnement=self.stationnement,
+            utilisation=self.utilisation,
+            adresse=self.addresse,
+            ville=self.ville,
+            quartier=self.quartier,
+            prix=self.prix,
+            revenus=self.revenus,
+            taxes=self.total_taxes,
+            eval_municipale=self.eval_municipale,
+            date_scrape=scrape_date.strftime("%Y-%m-%d"),
+        )
+
+    def to_db_model(self, scrape_date: str) -> PlexCentrisListingDB:
+        data = self.get_data(scrape_date)
+        return map_bien_centris_to_orm(data)
 
     @cached_property
     def html(self):
@@ -346,7 +380,87 @@ class CentrisScraper:
         return fetched_urls
 
 
-if __name__ == "__main__":
-    scraper = CentrisScraper()
-    urls = scraper.navigate_centris()
-    print(urls)
+class AsyncCentrisScraper:
+    """Navigate all Centris listings for plexes and extract HTML asynchronously"""
+
+    def __init__(self, start_url: str = START_URL_PLEX):
+        self.start_url = start_url
+
+    async def _wait_and_click(
+        self, page: Page, selector: str, timeout: int = 5000
+    ) -> str | None:
+        """
+        Wait for a selector and click it, returning its href if applicable.
+
+        Args:
+            page: Playwright page object
+            selector: CSS selector to wait for
+            timeout: Maximum wait time in milliseconds
+
+        Returns:
+            URL of the clicked element or None if not found
+        """
+        try:
+            element = await page.wait_for_selector(selector, timeout=timeout)
+            href = await element.get_attribute("href")
+            await element.click()
+            return f"https://www.centris.ca{href}" if href else None
+        except Exception as e:
+            print(f"Error finding/clicking {selector}: {e}")
+            return None
+
+    async def navigate_centris(self, num_pages: int = 3) -> list[str]:
+        """
+        Navigate through Centris pages and collect URLs asynchronously.
+
+        Args:
+            num_pages: Number of pages to scrape
+
+        Returns:
+            List of fetched URLs
+        """
+        fetched_urls = []
+
+        async with async_playwright() as playwright:
+            try:
+                # Launch browser
+                browser = await playwright.chromium.launch(
+                    headless=True, channel="chrome"
+                )
+                page = await browser.new_page()
+                await page.goto(self.start_url)
+
+                # Navigate to first duplex
+                await self._wait_and_click(page, "a#ButtonViewSummary")
+                await page.wait_for_load_state("networkidle")
+                # Navigate subsequent pages
+                for i in range(0, num_pages):
+                    # Get current page URL
+                    current_url = page.url
+                    print(f"URL {i}: {current_url}")
+                    fetched_urls.append(current_url)
+
+                    # Try to find and click next button
+                    try:
+                        next_button = await page.query_selector("li.next a")
+                        if not next_button:
+                            print("No more pages to navigate.")
+                            break
+
+                        # Navigate to next page
+                        await next_button.click()
+                        await page.wait_for_load_state("networkidle")
+
+                    except Exception as e:
+                        print(f"Error navigating to next page: {e}")
+                        break
+
+            except Exception as e:
+                print(f"Critical error in navigation: {e}")
+                fetched_urls = []
+
+            finally:
+                # Close browser
+                await browser.close()
+
+        return fetched_urls
