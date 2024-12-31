@@ -6,8 +6,8 @@ from urllib.parse import urlparse
 class PlexCentrisListing(BaseModel):
     url: str
     centris_id: int
-    title: str
-    annee_construction: int
+    title: str | None = None
+    annee_construction: int | None = None
     description: str | None = None
     unites: list[str] | None = None
     nombre_unites: int | None = None
@@ -18,9 +18,9 @@ class PlexCentrisListing(BaseModel):
     stationnement: int | None = None
     utilisation: str | None = None
     style_batiment: str | None = None
-    adresse: str
-    ville: str
-    quartier: str
+    adresse: str | None = None
+    ville: str | None = None
+    quartier: str | None = None
     prix: int
     revenus: int | None = None
     taxes: int | None = None

@@ -3,12 +3,12 @@ import re
 from selectolax.parser import HTMLParser
 from collections import namedtuple
 from functools import cached_property
-from playwright.sync_api import sync_playwright, Page
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 from centris.data_models import PlexCentrisListing
 from centris.db_models import PlexCentrisListingDB
 from centris.mappers import map_bien_centris_to_orm
 from datetime import datetime
+from loguru import logger
 
 
 START_URL_PLEX = "https://www.centris.ca/fr/plex~a-vendre~montreal?view=Thumbnail"
@@ -107,7 +107,7 @@ class CentrisBienParser:
 
     @property
     def centris_id(self):
-        return self.url_data.centris_id
+        return int(self.url_data.centris_id)
 
     @property
     def title(self):
@@ -149,7 +149,12 @@ class CentrisBienParser:
 
     @property
     def annee_construction(self) -> int | None:
-        return self.carac_data.get("Année de construction")
+        annee_construction_text = self.carac_data.get("Année de construction")
+        if annee_construction_text is not None:
+            match = re.search(r"\b(18|19|20)\d{2}\b", annee_construction_text)
+            if match:
+                return int(match.group(0))
+        return None
 
     @property
     def superficie_terrain(self) -> int | None:
@@ -230,7 +235,7 @@ class CentrisBienParser:
 
         except Exception as e:
             # Log the error and return a default value
-            print(f"Error calculating stationnement: {e}")
+            logger.error(f"Error calculating stationnement: {e}")
             return 0
 
     @property
@@ -300,41 +305,20 @@ class CentrisBienParser:
         return unites
 
 
+# TODO - Try scrapy for faster scraping?
 class CentrisScraper:
     """Navigate all Centris listings for plexes and extract HTML"""
 
     def __init__(self, start_url: str = START_URL_PLEX):
         self.start_url = start_url
 
-    def _wait_and_click(
-        self, page: Page, selector: str, timeout: int = 5000
-    ) -> str | None:
-        """
-        Wait for a selector and click it, returning its href if applicable.
-
-        Args:
-            page: Playwright page object
-            selector: CSS selector to wait for
-            timeout: Maximum wait time in milliseconds
-
-        Returns:
-            URL of the clicked element or None if not found
-        """
-        try:
-            element = page.wait_for_selector(selector, timeout=timeout)
-            href = element.get_attribute("href")
-            element.click()
-            return f"https://www.centris.ca{href}" if href else None
-        except Exception as e:
-            print(f"Error finding/clicking {selector}: {e}")
-            return None
-
     def scrape_urls(self, num_pages: int = 5, headless: bool = True) -> list[str]:
         """
-        Navigate through Centris pages and collect URLs.
+        Navigate through Centris thumbnail pages and collect URLs.
 
         Args:
             num_pages: Number of pages to scrape
+            headless: Whether to run browser in headless mode
 
         Returns:
             List of fetched URLs
@@ -344,54 +328,75 @@ class CentrisScraper:
         with sync_playwright() as playwright:
             try:
                 browser = playwright.chromium.launch(
-                    headless=headless, channel="chrome"
+                    headless=headless,
+                    channel="chromium",
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-web-security",
+                        "--disable-features=IsolateOrigins,site-per-process",
+                        "--no-sandbox",
+                    ],
                 )
                 page = browser.new_page()
-                page.goto(self.start_url)
+                page.set_viewport_size({"width": 1280, "height": 720})
 
-                # Handle cookie consent popup
-                try:
-                    accept_button = page.query_selector(
-                        "button#didomi-notice-agree-button"
-                    )
-                    if accept_button:
-                        print(
-                            "Cookie consent popup found. Clicking 'Accepter et continuer'."
+                # Add user-agent to mimic a real browser
+                page.set_extra_http_headers(
+                    {
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
                         )
-                        accept_button.click()
-                        page.wait_for_load_state("networkidle")
-                except Exception as e:
-                    print(f"No cookie consent popup found or error clicking: {e}")
+                    }
+                )
 
-                # Navigate to first duplex
-                first_duplex_url = self._wait_and_click(page, "a#ButtonViewSummary")
-                if first_duplex_url:
-                    fetched_urls.append(first_duplex_url)
+                page.goto(self.start_url)
+                self.handle_cookies(page)
+                self.sort_listings(page)
 
-                # Navigate subsequent pages
-                for i in range(1, num_pages):
-                    page.wait_for_load_state("networkidle")
+                for i in range(num_pages):
+                    # Wait for initial load
+                    page.wait_for_selector("div#property-result")
+                    # Additional wait to ensure dynamic content is loaded
+                    page.wait_for_selector("a.property-thumbnail-summary-link")
+                    page.wait_for_timeout(2000)  # Extra safety wait
 
-                    # Get current page URL
-                    current_url = page.url
-                    print(f"URL {i}: {current_url}")
-                    fetched_urls.append(current_url)
+                    # Get all summary links directly
+                    summary_links = page.query_selector_all(
+                        "a.property-thumbnail-summary-link"
+                    )
+                    logger.info(
+                        f"Found {len(summary_links)} properties on page {i + 1}"
+                    )
 
+                    for link in summary_links:
+                        href = link.get_attribute("href")
+                        if href and href.startswith("/fr/"):
+                            full_url = f"https://www.centris.ca{href}"
+                            fetched_urls.append(full_url)
+
+                    # Load next batch of listings
                     try:
                         next_button = page.query_selector("li.next a")
                         if not next_button:
-                            print("No more pages to navigate.")
+                            logger.info("No more listings to load.")
                             break
 
-                        with page.expect_navigation(wait_until="networkidle"):
-                            next_button.click()
+                        next_button.click()
+
+                        # Wait for loading indicator or some element that indicates page transition
+                        page.wait_for_selector("div#property-result")
+
+                        # Additional wait for dynamic content
+                        page.wait_for_selector("a.property-thumbnail-summary-link")
+                        page.wait_for_timeout(1000)  # Extra safety wait
 
                     except Exception as e:
-                        print(f"Error navigating to next page: {e}")
+                        logger.error(f"Error navigating to next page: {e}")
                         break
 
             except Exception as e:
-                print(f"Critical error in navigation: {e}")
+                logger.error(f"Critical error in navigation: {e}")
                 fetched_urls = []
 
             finally:
@@ -401,88 +406,32 @@ class CentrisScraper:
 
         return fetched_urls
 
-
-class AsyncCentrisScraper:
-    """Navigate all Centris listings for plexes and extract HTML asynchronously"""
-
-    def __init__(self, start_url: str = START_URL_PLEX):
-        self.start_url = start_url
-
-    async def _wait_and_click(
-        self, page: Page, selector: str, timeout: int = 5000
-    ) -> str | None:
-        """
-        Wait for a selector and click it, returning its href if applicable.
-
-        Args:
-            page: Playwright page object
-            selector: CSS selector to wait for
-            timeout: Maximum wait time in milliseconds
-
-        Returns:
-            URL of the clicked element or None if not found
-        """
+    def sort_listings(self, page):
         try:
-            element = await page.wait_for_selector(selector, timeout=timeout)
-            href = await element.get_attribute("href")
-            await element.click()
-            return f"https://www.centris.ca{href}" if href else None
+            # Click the sort dropdown button and wait for menu
+            sort_button = page.wait_for_selector("#selectSortById")
+            sort_button.click()
+
+            # Wait for dropdown menu to appear and select "Publication récente"
+            page.wait_for_selector(".dropdown-menu.dropdown-menu-right.show")
+
+            # Click the "Publication récente" option
+            recent_option = page.wait_for_selector('a[data-option-value="3"]')
+            recent_option.click()
+
+            # Wait for the page to update with new sorting
+            page.wait_for_load_state("networkidle")
         except Exception as e:
-            print(f"Error finding/clicking {selector}: {e}")
-            return None
+            logger.error(f"Error sorting listings: {e}")
 
-    async def navigate_centris(self, num_pages: int = 3) -> list[str]:
-        """
-        Navigate through Centris pages and collect URLs asynchronously.
-
-        Args:
-            num_pages: Number of pages to scrape
-
-        Returns:
-            List of fetched URLs
-        """
-        fetched_urls = []
-
-        async with async_playwright() as playwright:
-            try:
-                # Launch browser
-                browser = await playwright.chromium.launch(
-                    headless=True, channel="chrome"
+    def handle_cookies(self, page):
+        try:
+            accept_button = page.query_selector("button#didomi-notice-agree-button")
+            if accept_button:
+                logger.info(
+                    "Cookie consent popup found. Clicking 'Accepter et continuer'."
                 )
-                page = await browser.new_page()
-                await page.goto(self.start_url)
-
-                # Navigate to first duplex
-                await self._wait_and_click(page, "a#ButtonViewSummary")
-                await page.wait_for_load_state("networkidle")
-                # Navigate subsequent pages
-                for i in range(0, num_pages):
-                    # Get current page URL
-                    current_url = page.url
-                    print(f"URL {i}: {current_url}")
-                    fetched_urls.append(current_url)
-
-                    # Try to find and click next button
-                    try:
-                        next_button = await page.query_selector("li.next a")
-                        if not next_button:
-                            print("No more pages to navigate.")
-                            break
-
-                        # Navigate to next page
-                        await next_button.click()
-                        await page.wait_for_load_state("networkidle")
-
-                    except Exception as e:
-                        print(f"Error navigating to next page: {e}")
-                        break
-
-            except Exception as e:
-                print(f"Critical error in navigation: {e}")
-                fetched_urls = []
-
-            finally:
-                # Close browser
-                await browser.close()
-
-        return fetched_urls
+                accept_button.click()
+                page.wait_for_load_state("networkidle")
+        except Exception as e:
+            logger.info(f"No cookie consent popup found or error clicking: {e}")

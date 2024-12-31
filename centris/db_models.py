@@ -10,8 +10,13 @@ class Base(DeclarativeBase):
 class PlexCentrisListingDB(Base):
     __tablename__ = "plex_centris_listings"
 
+    # required fields
     centris_id: Mapped[int] = mapped_column(primary_key=True)
     url: Mapped[str]
+    prix: Mapped[int]
+    date_scrape: Mapped[str] = mapped_column(default=get_default_date)
+
+    # optional fields
     title: Mapped[Optional[str]]
     annee_construction: Mapped[Optional[int]]
     description: Mapped[Optional[str]]
@@ -27,8 +32,6 @@ class PlexCentrisListingDB(Base):
     adresse: Mapped[Optional[str]]
     ville: Mapped[Optional[str]]
     quartier: Mapped[Optional[str]]
-    prix: Mapped[int]
     revenus: Mapped[Optional[int]]
     taxes: Mapped[Optional[int]]
     eval_municipale: Mapped[Optional[int]]
-    date_scrape: Mapped[str] = mapped_column(default=get_default_date)

@@ -5,7 +5,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.16.4
+      jupytext_version: 1.16.6
   kernelspec:
     display_name: .venv
     language: python
@@ -17,13 +17,19 @@ jupyter:
 %autoreload 2
 
 from datetime import datetime
-from src.models import CentrisUrl, BienCentrisDuplex, CustomDateFormat
-from src.centris_scraper import CentrisBienParser, CentrisScraper
+from centris.centris_scraper import CentrisBienParser, AsyncCentrisScraper
+from centris.db_models import PlexCentrisListingDB
+from centris import Session
+from sqlalchemy.sql import select
+
+from pprint import pprint
 ```
+
+### Scraping 1 listing
 
 ```python
 plex_start_url="https://www.centris.ca/fr/plex~a-vendre~montreal?view=Thumbnail&uc=1"
-url_bien_centris = "https://www.centris.ca/fr/triplex~a-vendre~montreal-mercier-hochelaga-maisonneuve/9094837?view=Summary"
+url_bien_centris = "https://www.centris.ca/fr/triplex~a-vendre~montreal-ahuntsic-cartierville/19418151?view=Summary"
 ```
 
 ```python
@@ -31,73 +37,80 @@ centris_parser = CentrisBienParser(url_bien_centris)
 ```
 
 ```python
-print("DESCRIPTION\n------\n")
-print(f"Centris ID: {centris_parser.centris_id }")
-print(f"{centris_parser.title} - Utilisation {centris_parser.utilisation} - {centris_parser.style_batiment}")
-print(f"Description: {centris_parser.description}")
-print(f"Année de construction: {centris_parser.annee_construction}")
-print(f"Superficie:\n-terrain: {centris_parser.superficie_terrain} (pc)\
-      \n-batiment: {centris_parser.superficie_batiment} (pc)\
-        \n-habitable: {centris_parser.superficie_habitable}(pc)\
-        \n-commerce: {centris_parser.superficie_commerce} (pc)")
-print(f"Unités: {centris_parser.unites} ({centris_parser.nombre_unites})")
-print(f"Stationnement: {centris_parser.stationnement}")
-print(f"Autres charactéristiques: {centris_parser.additional_characteristics}")
-
-print("\nLOCALISATION\n------\n")
-print(f"Addresse: {centris_parser.addresse}")
-print(f"Ville: {centris_parser.ville}")
-print(f"Quartier: {centris_parser.quartier}")
-
-print("\nPORTRAIT FINANCIER\n------\n")
-print(f"Prix: {centris_parser.prix}")
-print(f"Prix au pc: {centris_parser.prix/centris_parser.superficie_terrain}")
-print(f"Revenus: {centris_parser.revenus}")
-print(f"Taxes: {centris_parser.total_taxes}")
-print(f"Evaluation municipale: {centris_parser.eval_municipale}")
-
+scrape_date=datetime.now()
+data = centris_parser.get_data(scrape_date)
 ```
 
 ```python
-centris_parser.eval_municipale
+pprint(data.model_dump())
+
+```
+
+saving to DB
+
+```python
+db_entry = centris_parser.to_db_model(scrape_date)
+with Session.begin() as session:
+    session.add_all(
+        [
+            db_entry
+        ]
+    )
 ```
 
 ```python
-bien_centris = BienCentrisDuplex(\
-    url= CentrisUrl(url=centris_parser.url),
-    centris_id = centris_parser.centris_id,
-    title = centris_parser.title,
-    annee_construction = centris_parser.annee_construction,
-    description = centris_parser.description,
-    unites = centris_parser.unites,
-    nombre_unites = centris_parser.nombre_unites,
-    superficie_habitable = centris_parser.superficie_habitable,
-    superficie_batiment = centris_parser.superficie_batiment,
-    superficie_commerce = centris_parser.superficie_commerce,
-    superficie_terrain = centris_parser.superficie_terrain,
-    stationnement=centris_parser.stationnement,
-    utilisation = centris_parser.utilisation,
-    adresse = centris_parser.addresse,
-    ville = centris_parser.ville,
-    quartier = centris_parser.quartier,
-    prix=centris_parser.prix,
-    revenus=centris_parser.revenus,
-    taxes= centris_parser.total_taxes,
-    eval_municipale=centris_parser.eval_municipale,
-    date_scrape = CustomDateFormat(date="2024-01-10"))
+# Query the database for testing
+stmt = select(PlexCentrisListingDB)
+objects = session.scalars(stmt).all()
 ```
 
 ```python
-bien_centris
+objects[0].__dict__
 ```
 
 ```python
-from playwright.sync_api import sync_playwright
-playwright = sync_playwright().start()
-browser = playwright.chromium.launch(headless=False)
-page = browser.new_page()
-page.goto("https://www.centris.ca/fr/plex~a-vendre~montreal?view=Thumbnail")
-page.cl(path="example.png")
-browser.close()
-playwright.stop()
+with Session.begin() as session:
+    # Get existing IDs
+    existing_ids = {
+        id_[0] for id_ in
+        session.query(PlexCentrisListingDB.centris_id).all()
+    }
+```
+
+```python
+print(existing_ids)
+```
+
+```python
+from centris.main import get_existing_centris_ids
+existing_ids = get_existing_centris_ids()
+```
+
+```python
+for el in existing_ids:
+    print(el)
+    break
+```
+
+```python
+all_urls = ['https://www.centris.ca/fr/duplex~a-vendre~montreal-ahuntsic-cartierville/11493867?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-cote-des-neiges-notre-dame-de-grace/21712528?view=Summary', 'https://www.centris.ca/fr/quadruplex~a-vendre~montreal-lachine/23406148?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-mercier-hochelaga-maisonneuve/26336120?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-ahuntsic-cartierville/28623760?view=Summary', 'https://www.centris.ca/fr/quadruplex~a-vendre~montreal-l-ile-bizard-sainte-genevieve/19847268?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-ville-marie/11160801?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-riviere-des-prairies-pointe-aux-trembles/18705723?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-mercier-hochelaga-maisonneuve/21586957?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-mercier-hochelaga-maisonneuve/14317746?view=Summary', 'https://www.centris.ca/fr/quadruplex~a-vendre~montreal-villeray-saint-michel-parc-extension/11141292?view=Summary', 'https://www.centris.ca/fr/quintuplex~a-vendre~montreal-le-sud-ouest/16008600?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-saint-laurent/10360074?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-ville-marie/9757519?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-lachine/10149723?view=Summary', 'https://www.centris.ca/fr/quadruplex~a-vendre~montreal-le-plateau-mont-royal/15742000?view=Summary', 'https://www.centris.ca/fr/quadruplex~a-vendre~montreal-riviere-des-prairies-pointe-aux-trembles/19866722?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-verdun-ile-des-soeurs/24411293?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-cote-des-neiges-notre-dame-de-grace/25881718?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-rosemont-la-petite-patrie/14415173?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-riviere-des-prairies-pointe-aux-trembles/12881479?view=Summary', 'https://www.centris.ca/fr/triplex~a-vendre~montreal-ville-marie/19584463?view=Summary', 'https://www.centris.ca/fr/duplex~a-vendre~montreal-ahuntsic-cartierville/22353235?view=Summary', 'https://www.centris.ca/fr/quadruplex~a-vendre~montreal-ahuntsic-cartierville/16027183?view=Summary']
+```
+
+```python
+from tqdm import tqdm
+from centris.centris_scraper import CentrisBienParser
+```
+
+```python
+for url in tqdm(all_urls, desc="Scraping content of each listing URL"):
+    centris_parser = CentrisBienParser(url)
+    print(centris_parser.centris_id)
+    if centris_parser.centris_id in existing_ids:
+        print(f"Skipping {centris_parser.centris_id} as it already exists in the DB")
+        continue
+    db_entry = centris_parser.to_db_model(scrape_date)
+```
+
+```python
+
 ```
