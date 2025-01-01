@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11,<3.13"
 requests = "^2.32.3"
 selectolax = "^0.3.26"
 pydantic = "^2.10.3"
@@ -36,6 +36,8 @@ pre-commit = "^4.0.1"
 [tool.poetry.group.frontend.dependencies]
 streamlit = "^1.41.1"
 pandas = "^2.2.3"
+ydata-profiling = "^4.12.1"
+seaborn = "^0.13.2"
 
 [build-system]
 requires = ["poetry-core"]
