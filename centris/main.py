@@ -26,7 +26,6 @@ def scrape_content(urls, scrape_date, existing_ids):
     for url in tqdm(urls, desc="Scraping content of each listing URL"):
         try:
             centris_parser = CentrisBienParser(url)
-            print(centris_parser.centris_id)
             # TODO - we may want to still scrape the content and compare info (e.g. price update)
             if centris_parser.centris_id in existing_ids:
                 logger.info(
@@ -55,8 +54,8 @@ def save_to_db(db_entries, existing_ids):
 if __name__ == "__main__":
     scrape_date = datetime.now()
     existing_ids = get_existing_centris_ids()
-    logger.info(f"Existing IDs: {existing_ids}")
-    urls = get_urls(num_pages=2, headless=True)
-    logger.info(f"All URLs: {urls}")
+    # logger.info(f"Existing IDs: {existing_ids}")
+    urls = get_urls(num_pages=2, headless=False)
+    # logger.debug(f"All URLs: {urls}")
     db_entries = scrape_content(urls, scrape_date, existing_ids)
     save_to_db(db_entries, existing_ids)
