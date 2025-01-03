@@ -1,5 +1,5 @@
 import json
-from centris.db_models import PlexCentrisListingDB
+from centris.backend.db_models import PlexCentrisListingDB
 
 
 def map_bien_centris_to_orm(

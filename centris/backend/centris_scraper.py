@@ -4,9 +4,9 @@ from selectolax.parser import HTMLParser
 from collections import namedtuple
 from functools import cached_property
 from playwright.sync_api import sync_playwright
-from centris.data_models import PlexCentrisListing
-from centris.db_models import PlexCentrisListingDB
-from centris.mappers import map_bien_centris_to_orm
+from centris.backend.data_models import PlexCentrisListing
+from centris.backend.db_models import PlexCentrisListingDB
+from centris.backend.mappers import map_bien_centris_to_orm
 from datetime import datetime
 from loguru import logger
 

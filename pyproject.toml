@@ -4,7 +4,8 @@ version = "0.1.0"
 description = ""
 authors = ["arthurlemon <coucou@example.com>"]
 readme = "README.md"
-packages = [{include = "src"}]
+packages = [{include = "centris/backend"},
+    {include = "centris/frontend"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
