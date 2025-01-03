@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
-from centris.utils import get_default_date
+from centris.backend.utils import get_default_date
 from typing import Optional
 
 

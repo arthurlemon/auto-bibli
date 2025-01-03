@@ -1,6 +1,6 @@
 from datetime import datetime
-from centris.centris_scraper import CentrisBienParser, CentrisScraper
-from centris.db_models import PlexCentrisListingDB
+from centris.backend.centris_scraper import CentrisBienParser, CentrisScraper
+from centris.backend.db_models import PlexCentrisListingDB
 from centris import Session
 from loguru import logger
 from tqdm import tqdm
@@ -15,13 +15,15 @@ def get_existing_centris_ids() -> set[int]:
 
 
 # TODO - Add stopping criteria based on existing_ids: if among the URL of a given page, at least 1 is in the DB, we stop (because listings are sorted by date)
-def get_urls(**kwargs):
+def get_urls(**kwargs) -> list[str]:
     scraper = CentrisScraper()
     urls = scraper.scrape_urls(**kwargs)
     return urls
 
 
-def scrape_content(urls, scrape_date, existing_ids):
+def scrape_content(
+    urls: list[str], scrape_date: datetime, existing_ids: set[int]
+) -> list[PlexCentrisListingDB]:
     db_entries = []
     for url in tqdm(urls, desc="Scraping content of each listing URL"):
         try:
@@ -39,9 +41,8 @@ def scrape_content(urls, scrape_date, existing_ids):
     return db_entries
 
 
-def save_to_db(db_entries, existing_ids):
+def save_to_db(db_entries: list[PlexCentrisListingDB], existing_ids: set[int]) -> None:
     with Session.begin() as session:
-        existing_ids = existing_ids or get_existing_centris_ids()
         new_entries = [
             entry for entry in db_entries if entry.centris_id not in existing_ids
         ]
@@ -54,8 +55,6 @@ def save_to_db(db_entries, existing_ids):
 if __name__ == "__main__":
     scrape_date = datetime.now()
     existing_ids = get_existing_centris_ids()
-    # logger.info(f"Existing IDs: {existing_ids}")
-    urls = get_urls(num_pages=2, headless=False)
-    # logger.debug(f"All URLs: {urls}")
+    urls = get_urls(num_pages=2, headless=True)
     db_entries = scrape_content(urls, scrape_date, existing_ids)
     save_to_db(db_entries, existing_ids)

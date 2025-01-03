@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from centris.db_models import PlexCentrisListingDB
+from centris.backend.db_models import PlexCentrisListingDB
 from centris import Session
 
 
@@ -24,15 +24,12 @@ def calculate_quartier_stats(df: pd.DataFrame) -> pd.DataFrame:
                 "Prix min": group["Prix"].min(),
                 "Prix max": group["Prix"].max(),
                 "Prix/pi² terrain moyen": group["Prix/pi² terrain"].mean(),
-                "Prix/pi² bâtiment moyen": group["Prix/pi² bâtiment"].mean(),
-                "Ratio (Prix + 25ans taxes)/Revenus moyen": group[
-                    "Ratio (Prix + 25ans taxes)/Revenus"
-                ].mean(),
+                "Annees Payback moyen": group["Annees Payback"].mean(),
                 "Diff Prix vs Éval (%) moyen": group["Diff Prix vs Éval (%)"].mean(),
             }
         )
 
-    return pd.DataFrame(stats).sort_values("Nombre de propriétés", ascending=False)
+    return pd.DataFrame(stats).sort_values("Prix médian")
 
 
 def format_money(x):
@@ -50,15 +47,17 @@ def calculate_metrics(df: pd.DataFrame) -> pd.DataFrame:
     # Price per square foot metrics
     if "Superficie terrain (pi²)" in df.columns:
         df["Prix/pi² terrain"] = df["Prix"] / df["Superficie terrain (pi²)"]
-    if "Superficie bâtiment (pi²)" in df.columns:
-        df["Prix/pi² bâtiment"] = df["Prix"] / df["Superficie bâtiment (pi²)"]
-    if "Superficie habitable (pi²)" in df.columns:
-        df["Prix/pi² habitable"] = df["Prix"] / df["Superficie habitable (pi²)"]
+
+    # not computing because too many missing values (>=80%)
+    # if "Superficie bâtiment (pi²)" in df.columns:
+    #     df["Prix/pi² bâtiment"] = df["Prix"] / df["Superficie bâtiment (pi²)"]
+    # if "Superficie habitable (pi²)" in df.columns:
+    #     df["Prix/pi² habitable"] = df["Prix"] / df["Superficie habitable (pi²)"]
 
     # Calculate payback period considering taxes
-    df["Ratio (Prix + 25ans taxes)/Revenus"] = (
-        df["Prix"] + 25 * df["Taxes annuelles"]
-    ) / df["Revenus annuels"]
+    df["Annees Payback"] = df["Prix"] / (df["Revenus annuels"] - df["Taxes annuelles"])
+
+    df["Ratio Revenus / Prix"] = (df["Revenus annuels"] / df["Prix"]) * 100
 
     # Municipal evaluation metrics
     df["Diff Prix vs Éval (%)"] = (
@@ -75,11 +74,11 @@ def load_listings_data() -> pd.DataFrame:
 
         data = [
             {
+                "Quartier": listing.quartier,
                 "URL": listing.url,
                 "Prix": listing.prix,
                 "Titre": listing.title,
                 "Adresse": listing.adresse,
-                "Quartier": listing.quartier,
                 "Superficie terrain (pi²)": listing.superficie_terrain,
                 "Revenus annuels": listing.revenus,
                 "Taxes annuelles": listing.taxes,
@@ -88,12 +87,12 @@ def load_listings_data() -> pd.DataFrame:
                 "Description": listing.description,
                 "Unités": listing.unites,
                 #'Nombre unités': listing.nombre_unites,
-                "Superficie habitable (pi²)": listing.superficie_habitable,
-                "Superficie bâtiment (pi²)": listing.superficie_batiment,
-                "Superficie commerce (pi²)": listing.superficie_commerce,
+                # "Superficie habitable (pi²)": listing.superficie_habitable,
+                # "Superficie bâtiment (pi²)": listing.superficie_batiment,
+                # "Superficie commerce (pi²)": listing.superficie_commerce,
                 "Stationnement": listing.stationnement,
                 "Utilisation": listing.utilisation,
-                "Style bâtiment": listing.style_batiment,
+                # "Style bâtiment": listing.style_batiment,
                 #'ID Centris': listing.centris_id,
                 "Date de scrape": listing.date_scrape,
                 "Ville": listing.ville,
@@ -102,7 +101,31 @@ def load_listings_data() -> pd.DataFrame:
         ]
 
     df = pd.DataFrame(data)
-    return calculate_metrics(df)
+    enriched_df = calculate_metrics(df)
+    return enriched_df[
+        [
+            "Quartier",
+            "URL",
+            "Prix",
+            "Superficie terrain (pi²)",
+            "Revenus annuels",
+            "Taxes annuelles",
+            "Prix/pi² terrain",
+            "Annees Payback",
+            "Ratio Revenus / Prix",
+            "Diff Prix vs Éval (%)",
+            "Titre",
+            "Adresse",
+            "Évaluation municipale",
+            "Année construction",
+            "Description",
+            "Unités",
+            "Stationnement",
+            "Utilisation",
+            "Date de scrape",
+            "Ville",
+        ]
+    ]
 
 
 def main():
@@ -164,18 +187,8 @@ def main():
             "Prix/pi² terrain": st.column_config.NumberColumn(
                 "Prix/pi² terrain", help="Prix par pied carré de terrain", format="%.2f"
             ),
-            "Prix/pi² bâtiment": st.column_config.NumberColumn(
-                "Prix/pi² bâtiment",
-                help="Prix par pied carré de bâtiment",
-                format="%.2f",
-            ),
-            "Prix/pi² habitable": st.column_config.NumberColumn(
-                "Prix/pi² habitable",
-                help="Prix par pied carré habitable",
-                format="%.2f",
-            ),
-            "Ratio (Prix + 25ans taxes)/Revenus": st.column_config.NumberColumn(
-                "Ratio (Prix + 25ans taxes)/Revenus",
+            "Annees Payback": st.column_config.NumberColumn(
+                "Annees Payback",
                 help="Années de revenus pour couvrir prix et 25 ans de taxes",
                 format="%.1f",
             ),
@@ -258,13 +271,8 @@ def main():
                 help="Prix moyen par pied carré de terrain",
                 format="%.2f",
             ),
-            "Prix/pi² bâtiment moyen": st.column_config.NumberColumn(
-                "Prix/pi² bâtiment moyen",
-                help="Prix moyen par pied carré de bâtiment",
-                format="%.2f",
-            ),
-            "Ratio (Prix + 25ans taxes)/Revenus moyen": st.column_config.NumberColumn(
-                "Ratio (Prix + 25ans taxes)/Revenus moyen",
+            "Annees Payback moyen": st.column_config.NumberColumn(
+                "Annees Payback moyen",
                 help="Nombre moyen d'années de revenus pour couvrir le prix",
                 format="%.1f",
             ),
@@ -284,10 +292,8 @@ def main():
             )
         with col2:
             st.metric(
-                "Meilleur Ratio (Prix + 25ans taxes)/Revenus",
-                stats_df.nsmallest(1, "Ratio (Prix + 25ans taxes)/Revenus moyen")[
-                    "Quartier"
-                ].iloc[0],
+                "Annees Payback les plus rapides",
+                stats_df.nsmallest(1, "Annees Payback moyen")["Quartier"].iloc[0],
             )
         with col3:
             st.metric(
