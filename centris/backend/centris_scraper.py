@@ -9,6 +9,7 @@ from centris.backend.db_models import PlexCentrisListingDB
 from centris.backend.mappers import map_bien_centris_to_orm
 from datetime import datetime
 from loguru import logger
+from tqdm import tqdm
 
 
 START_URL_PLEX = "https://www.centris.ca/fr/plex~a-vendre~montreal?view=Thumbnail"
@@ -250,7 +251,9 @@ class CentrisBienParser:
             )
             if taxes_total_value:
                 taxes_total_text = taxes_total_value.text().strip()
-                return int(re.sub(r"[^0-9]", "", taxes_total_text))
+                value = re.sub(r"[^0-9]", "", taxes_total_text)
+                if value:
+                    return int(value)
         return None
 
     @property
@@ -260,7 +263,9 @@ class CentrisBienParser:
             eval_municipal_value = eval_row.css_first("td.font-weight-bold.text-right")
             if eval_municipal_value:
                 eval_municipale_text = eval_municipal_value.text().strip()
-                return int(re.sub(r"[^0-9]", "", eval_municipale_text))
+                value = re.sub(r"[^0-9]", "", eval_municipale_text)
+                if value:
+                    return int(value)
         return None
 
     @property
@@ -305,7 +310,7 @@ class CentrisBienParser:
         return unites
 
 
-# TODO - Try scrapy for faster scraping?
+# Learning option - Try scrapy for faster scraping?
 class CentrisScraper:
     """Navigate all Centris listings for plexes and extract HTML"""
 
@@ -338,7 +343,7 @@ class CentrisScraper:
                     ],
                 )
                 page = browser.new_page()
-                page.set_viewport_size({"width": 1280, "height": 720})
+                page.set_viewport_size({"width": 1920, "height": 1080})
 
                 # Add user-agent to mimic a real browser
                 page.set_extra_http_headers(
@@ -354,7 +359,7 @@ class CentrisScraper:
                 self.handle_cookies(page)
                 self.sort_listings(page)
 
-                for i in range(num_pages):
+                for i in tqdm(range(num_pages), total=num_pages):
                     # Wait for initial load
                     page.wait_for_selector("div#property-result")
                     # Additional wait to ensure dynamic content is loaded
@@ -364,11 +369,6 @@ class CentrisScraper:
                     # Get all summary links directly
                     summary_links = page.query_selector_all(
                         "a.property-thumbnail-summary-link"
-                    )
-
-                    # TODO - Check why only 12 properties are found instead of 20
-                    logger.info(
-                        f"Found {len(summary_links)} properties on page {i + 1}"
                     )
 
                     for link in summary_links:
