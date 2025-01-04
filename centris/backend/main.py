@@ -52,9 +52,30 @@ def save_to_db(db_entries: list[PlexCentrisListingDB], existing_ids: set[int]) -
             session.add_all(new_entries)
 
 
+def scrape_and_save(
+    urls: list[str], scrape_date: datetime, existing_ids: set[int]
+) -> None:
+    with Session.begin() as session:
+        for url in tqdm(urls, desc="Scraping and saving listings"):
+            try:
+                centris_parser = CentrisBienParser(url)
+                if centris_parser.centris_id in existing_ids:
+                    logger.info(
+                        f"Skipping {centris_parser.centris_id} as it already exists in the DB"
+                    )
+                    continue
+                db_entry = centris_parser.to_db_model(scrape_date)
+                session.add(db_entry)
+
+            except Exception as e:
+                logger.error(f"Error storing {url}: {e}")
+                continue
+
+
 if __name__ == "__main__":
     scrape_date = datetime.now()
     existing_ids = get_existing_centris_ids()
-    urls = get_urls(num_pages=2, headless=True)
-    db_entries = scrape_content(urls, scrape_date, existing_ids)
-    save_to_db(db_entries, existing_ids)
+    urls = get_urls(num_pages=3, headless=True)
+    scrape_and_save(urls, scrape_date, existing_ids)
+    # db_entries = scrape_content(urls, scrape_date, existing_ids)
+    # save_to_db(db_entries, existing_ids)

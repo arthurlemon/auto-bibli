@@ -7,6 +7,7 @@ class Base(DeclarativeBase):
     pass
 
 
+# TODO - Add "active" field to track if listing is still active
 class PlexCentrisListingDB(Base):
     __tablename__ = "plex_centris_listings"
 

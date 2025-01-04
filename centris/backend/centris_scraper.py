@@ -365,6 +365,8 @@ class CentrisScraper:
                     summary_links = page.query_selector_all(
                         "a.property-thumbnail-summary-link"
                     )
+
+                    # TODO - Check why only 12 properties are found instead of 20
                     logger.info(
                         f"Found {len(summary_links)} properties on page {i + 1}"
                     )
