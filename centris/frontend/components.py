@@ -1,6 +1,50 @@
 import streamlit as st
-from centris.frontend.utils import format_money
+from centris.frontend.utils import format_money, clean_address
 import pandas as pd
+from geopy.geocoders import Nominatim
+import folium
+import time
+
+
+def geocode_addresses(df):
+    geolocator = Nominatim(user_agent="centris_app", timeout=5)
+
+    if "latitude" not in df.columns:
+        df["latitude"] = None
+        df["longitude"] = None
+
+    mask = df[["latitude", "longitude"]].isna().any(axis=1)
+    for idx, row in df[mask].iterrows():
+        clean_addr = clean_address(row["Adresse"])
+        address = f"{clean_addr}, {row['Ville']}, Québec, Canada"
+        try:
+            # TODO - Save the geocoding results to the DB to avoid re-geocoding
+            location = geolocator.geocode(address)
+            if location:
+                df.at[idx, "latitude"] = location.latitude
+                df.at[idx, "longitude"] = location.longitude
+            time.sleep(1)  # Respect rate limits
+        except Exception as e:
+            print(f"Error geocoding {address}: {str(e)}")
+            continue
+
+    return df
+
+
+def create_property_map(df):
+    center_lat = df["latitude"].mean()
+    center_lon = df["longitude"].mean()
+
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+    for _, row in df.iterrows():
+        if pd.notna(row["latitude"]) and pd.notna(row["longitude"]):
+            folium.Marker(
+                [row["latitude"], row["longitude"]],
+                popup=f"<b>{row['Prix']:,.0f}$</b><br>{row['Adresse']}<br><a href='{row['URL']}' target='_blank'>Voir l'annonce</a>",
+            ).add_to(m)
+
+    return m
 
 
 def display_property_metrics(df: pd.DataFrame) -> None:

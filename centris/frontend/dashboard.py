@@ -1,8 +1,9 @@
 import streamlit as st
+from streamlit_folium import st_folium
 from centris.frontend.utils import (
     calculate_quartier_stats,
     load_listings_data,
-    calculate_metrics,
+    calculate_property_financial_metrics,
     order_df,
 )
 from centris.frontend.components import (
@@ -10,9 +11,9 @@ from centris.frontend.components import (
     display_property_filters,
     display_quartier_filters,
     set_column_config,
+    geocode_addresses,
+    create_property_map,
 )
-
-# TODO - Geocode address and place on a map
 
 
 def main():
@@ -24,7 +25,8 @@ def main():
 
     # Load data
     raw_df = load_listings_data()
-    df = calculate_metrics(raw_df)
+    df = geocode_addresses(raw_df.iloc[:2])
+    df = calculate_property_financial_metrics(df)
     df = order_df(df)
 
     tab1, tab2 = st.tabs(["📊 Propriétés", "📈 Statistiques par quartier"])
@@ -57,6 +59,10 @@ def main():
             use_container_width=True,
             height=600,
         )
+
+        st.subheader("Carte des propriétés")
+        property_map = create_property_map(filtered_df)
+        st_folium(property_map, height=400, width=700)
 
     with tab2:
         st.subheader("Analyse par quartier")

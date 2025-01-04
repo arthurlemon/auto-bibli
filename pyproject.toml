@@ -39,6 +39,9 @@ streamlit = "^1.41.1"
 pandas = "^2.2.3"
 ydata-profiling = "^4.12.1"
 seaborn = "^0.13.2"
+geopy = "^2.4.1"
+folium = "^0.19.3"
+streamlit-folium = "^0.24.0"
 
 [build-system]
 requires = ["poetry-core"]
