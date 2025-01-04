@@ -8,6 +8,8 @@ class Base(DeclarativeBase):
 
 
 # TODO - Add "active" field to track if listing is still active
+# Propably requires calling the URL and checking if there is a redirect to the summary page
+# Annoying: publication_date cannot be scraped from the HTML
 class PlexCentrisListingDB(Base):
     __tablename__ = "plex_centris_listings"
 

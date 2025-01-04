@@ -4,78 +4,65 @@ from centris.backend.db_models import PlexCentrisListingDB
 from centris import Session
 from loguru import logger
 from tqdm import tqdm
+from pathlib import Path
 
 
-def get_existing_centris_ids() -> set[int]:
-    with Session.begin() as session:
-        existing_ids = {
-            id_[0] for id_ in session.query(PlexCentrisListingDB.centris_id).all()
-        }
+def get_existing_centris_ids(session) -> set[int]:
+    existing_ids = {
+        id_[0] for id_ in session.query(PlexCentrisListingDB.centris_id).all()
+    }
     return existing_ids
 
 
 # TODO - Add stopping criteria based on existing_ids: if among the URL of a given page, at least 1 is in the DB, we stop (because listings are sorted by date)
-def get_urls(**kwargs) -> list[str]:
+def get_urls_from_web(scrape_date: datetime, **kwargs) -> list[str]:
     scraper = CentrisScraper()
     urls = scraper.scrape_urls(**kwargs)
+    # Store the URLs in a file
+    Path(f"artifacts/{scrape_date.strftime('%Y-%m-%d_%H-%M-%S')}").mkdir(
+        parents=True, exist_ok=True
+    )
+    with open(
+        f"artifacts/{scrape_date.strftime('%Y-%m-%d_%H-%M-%S')}/urls.txt", "w"
+    ) as f:
+        f.write("\n".join(urls))
     return urls
 
 
-def scrape_content(
-    urls: list[str], scrape_date: datetime, existing_ids: set[int]
-) -> list[PlexCentrisListingDB]:
-    db_entries = []
-    for url in tqdm(urls, desc="Scraping content of each listing URL"):
-        try:
-            centris_parser = CentrisBienParser(url)
-            # TODO - we may want to still scrape the content and compare info (e.g. price update)
-            if centris_parser.centris_id in existing_ids:
-                logger.info(
-                    f"Skipping {centris_parser.centris_id} as it already exists in the DB"
-                )
-                continue
-            db_entry = centris_parser.to_db_model(scrape_date)
-            db_entries.append(db_entry)
-        except Exception as e:
-            logger.error(f"Error scraping {url}: {e}")
-    return db_entries
-
-
-def save_to_db(db_entries: list[PlexCentrisListingDB], existing_ids: set[int]) -> None:
-    with Session.begin() as session:
-        new_entries = [
-            entry for entry in db_entries if entry.centris_id not in existing_ids
-        ]
-
-        if new_entries:
-            logger.info(f"Saving {len(new_entries)} new listings to the DB")
-            session.add_all(new_entries)
+def get_urls_from_file(scrape_time: str, **kwargs) -> list[str]:
+    with open(f"artifacts/{scrape_time}/urls.txt", "r") as f:
+        urls = f.read().splitlines()
+    return urls
 
 
 def scrape_and_save(
-    urls: list[str], scrape_date: datetime, existing_ids: set[int]
+    urls: list[str], scrape_date: datetime, existing_ids: set[int], session
 ) -> None:
-    with Session.begin() as session:
-        for url in tqdm(urls, desc="Scraping and saving listings"):
-            try:
-                centris_parser = CentrisBienParser(url)
-                if centris_parser.centris_id in existing_ids:
-                    logger.info(
-                        f"Skipping {centris_parser.centris_id} as it already exists in the DB"
-                    )
-                    continue
-                db_entry = centris_parser.to_db_model(scrape_date)
-                session.add(db_entry)
-
-            except Exception as e:
-                logger.error(f"Error storing {url}: {e}")
+    for url in tqdm(urls, desc="Scraping and saving listings"):
+        try:
+            centris_parser = CentrisBienParser(url)
+            if centris_parser.centris_id in existing_ids:
+                logger.info(f"Skipping {centris_parser.centris_id}")
                 continue
+
+            db_entry = centris_parser.to_db_model(scrape_date)
+            session.add(db_entry)
+            session.commit()
+            existing_ids.add(centris_parser.centris_id)
+
+        except Exception as e:
+            logger.error(f"Error storing {url}: {e}")
+            session.rollback()
+            continue
 
 
 if __name__ == "__main__":
     scrape_date = datetime.now()
-    existing_ids = get_existing_centris_ids()
-    urls = get_urls(num_pages=3, headless=True)
-    scrape_and_save(urls, scrape_date, existing_ids)
-    # db_entries = scrape_content(urls, scrape_date, existing_ids)
-    # save_to_db(db_entries, existing_ids)
+    scrape_urls = False
+    with Session() as session:
+        existing_ids = get_existing_centris_ids(session)
+        if scrape_urls:
+            urls = get_urls_from_web(scrape_date, num_pages=60, headless=True)
+        else:
+            urls = get_urls_from_file("2025-01-04_09-52-56")
+        scrape_and_save(urls, scrape_date, existing_ids, session)
