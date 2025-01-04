@@ -1,7 +1,6 @@
 from datetime import datetime
 from centris.backend.centris_scraper import CentrisBienParser, CentrisScraper
 from centris.backend.db_models import PlexCentrisListingDB
-from centris import Session
 from loguru import logger
 from tqdm import tqdm
 from pathlib import Path
@@ -57,12 +56,17 @@ def scrape_and_save(
 
 
 if __name__ == "__main__":
-    scrape_date = datetime.now()
-    scrape_urls = False
-    with Session() as session:
-        existing_ids = get_existing_centris_ids(session)
-        if scrape_urls:
-            urls = get_urls_from_web(scrape_date, num_pages=60, headless=True)
-        else:
-            urls = get_urls_from_file("2025-01-04_09-52-56")
-        scrape_and_save(urls, scrape_date, existing_ids, session)
+    # scrape_date = datetime.now()
+    # scrape_urls = False
+    # with Session() as session:
+    #     existing_ids = get_existing_centris_ids(session)
+    #     if scrape_urls:
+    #         urls = get_urls_from_web(scrape_date, num_pages=60, headless=True)
+    #     else:
+    #         urls = get_urls_from_file("2025-01-04_09-52-56")
+    #     scrape_and_save(urls, scrape_date, existing_ids, session)
+    from geopy.geocoders import Nominatim
+
+    geolocator = Nominatim(user_agent="centris_app", timeout=5)
+    location = geolocator.geocode("175 5th Avenue NYC")
+    print(location.address)

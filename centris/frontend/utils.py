@@ -19,9 +19,9 @@ def calculate_quartier_stats(df: pd.DataFrame) -> pd.DataFrame:
                 "Prix médian": group["Prix"].median(),
                 "Prix min": group["Prix"].min(),
                 "Prix max": group["Prix"].max(),
-                "Prix/pi² terrain moyen": group["Prix/pi² terrain"].mean(),
-                "Annees Payback moyen": group["Annees Payback"].mean(),
-                "Diff Prix vs Éval (%) moyen": group["Diff Prix vs Éval (%)"].mean(),
+                "Prix/pi² terrain médian": group["Prix/pi² terrain"].median(),
+                "Annees Payback médian": group["Annees Payback"].median(),
+                "Diff Prix vs Éval (%) médian": group["Diff Prix vs Éval (%)"].median(),
             }
         )
 
@@ -35,7 +35,7 @@ def format_money(x):
     return f"{int(x):,}".replace(",", " ")
 
 
-def calculate_metrics(raw_df: pd.DataFrame) -> pd.DataFrame:
+def calculate_property_financial_metrics(raw_df: pd.DataFrame) -> pd.DataFrame:
     """Calculate derived financial metrics"""
     # Create a copy to avoid modifying the original
     enriched_df = raw_df.copy()
@@ -91,9 +91,16 @@ def order_df(df):
         "Stationnement",
         "Utilisation",
         "Date de scrape",
+        "latitude",
+        "longitude",
     ]
     df = df.sort_values("Date de scrape", ascending=False)
     return df[display_columns]
+
+
+def clean_address(address):
+    main_part = "".join(address.split(",")[:2])
+    return main_part
 
 
 def load_listings_data() -> pd.DataFrame:
