@@ -7,7 +7,7 @@ Create Date: 2024-12-28 08:37:03.508192
 """
 
 from typing import Sequence, Union
-from centris.utils import get_default_date
+from centris.backend.utils import get_default_date
 from alembic import op
 import sqlalchemy as sa
 
