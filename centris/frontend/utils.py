@@ -71,7 +71,7 @@ def calculate_property_financial_metrics(raw_df: pd.DataFrame) -> pd.DataFrame:
     return enriched_df
 
 
-def order_df(df):
+def order_df(df, include_latlong=False):
     display_columns = [
         "Quartier",
         "URL",
@@ -91,9 +91,11 @@ def order_df(df):
         "Stationnement",
         "Utilisation",
         "Date de scrape",
-        "latitude",
-        "longitude",
     ]
+
+    if include_latlong:
+        display_columns.append("latitude")
+        display_columns.append("longitude")
     df = df.sort_values("Date de scrape", ascending=False)
     return df[display_columns]
 

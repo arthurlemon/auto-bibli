@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_folium import st_folium
 from centris.frontend.utils import (
     calculate_quartier_stats,
     load_listings_data,
@@ -12,7 +11,7 @@ from centris.frontend.components import (
     display_quartier_filters,
     set_column_config,
     geocode_addresses,
-    create_property_map,
+    create_map_data,
 )
 
 
@@ -22,12 +21,13 @@ def main():
     )
 
     st.title("Centris Plex Listings Dashboard")
-
+    display_map = st.checkbox("Afficher la carte des propriétés", value=False)
     # Load data
     raw_df = load_listings_data()
-    df = geocode_addresses(raw_df.iloc[:2])
-    df = calculate_property_financial_metrics(df)
-    df = order_df(df)
+    if display_map:
+        raw_df = geocode_addresses(raw_df.iloc[:2])
+    df = calculate_property_financial_metrics(raw_df)
+    df = order_df(df, include_latlong=display_map)
 
     tab1, tab2 = st.tabs(["📊 Propriétés", "📈 Statistiques par quartier"])
 
@@ -60,9 +60,11 @@ def main():
             height=600,
         )
 
-        st.subheader("Carte des propriétés")
-        property_map = create_property_map(filtered_df)
-        st_folium(property_map, height=400, width=700)
+        if display_map:
+            st.subheader("Carte des propriétés")
+            map_data = create_map_data(filtered_df)
+            if not map_data.empty:
+                st.map(map_data)
 
     with tab2:
         st.subheader("Analyse par quartier")
