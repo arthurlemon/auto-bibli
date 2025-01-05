@@ -2,7 +2,6 @@ import streamlit as st
 from centris.frontend.utils import format_money, clean_address
 import pandas as pd
 from geopy.geocoders import Nominatim
-import folium
 import time
 
 
@@ -31,20 +30,14 @@ def geocode_addresses(df):
     return df
 
 
-def create_property_map(df):
-    center_lat = df["latitude"].mean()
-    center_lon = df["longitude"].mean()
+def create_map_data(df):
+    # Only keep rows with valid coordinates
+    map_df = df[df["latitude"].notna() & df["longitude"].notna()].copy()
 
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+    # Format price for tooltip
+    map_df["Prix"] = map_df["Prix"].apply(lambda x: f"{x:,.0f}$")
 
-    for _, row in df.iterrows():
-        if pd.notna(row["latitude"]) and pd.notna(row["longitude"]):
-            folium.Marker(
-                [row["latitude"], row["longitude"]],
-                popup=f"<b>{row['Prix']:,.0f}$</b><br>{row['Adresse']}<br><a href='{row['URL']}' target='_blank'>Voir l'annonce</a>",
-            ).add_to(m)
-
-    return m
+    return map_df[["latitude", "longitude", "Prix", "Adresse"]]
 
 
 def display_property_metrics(df: pd.DataFrame) -> None:

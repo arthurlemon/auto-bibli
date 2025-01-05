@@ -1,3 +1,4 @@
+db/
 artifacts/
 *.DS_Store
 **.txt
