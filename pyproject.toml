@@ -9,18 +9,24 @@ packages = [{include = "centris/backend"},
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-requests = "^2.32.3"
-selectolax = "^0.3.26"
-pydantic = "^2.10.3"
-playwright = "^1.49.0"
-sqlalchemy = "^2.0.36"
-alembic = "^1.14.0"
-psycopg2-binary = "^2.9.10"
 python-dotenv = "^1.0.1"
-scrapy = "^2.12.0"
 loguru = "^0.7.3"
 tqdm = "^4.67.1"
 
+[tool.poetry.group.backend.dependencies]
+requests = "^2.32.3"
+selectolax = "^0.3.27"
+pydantic = "^2.10.4"
+playwright = "^1.49.1"
+sqlalchemy = "^2.0.36"
+alembic = "^1.14.0"
+psycopg2-binary = "^2.9.10"
+
+[tool.poetry.group.frontend.dependencies]
+streamlit = "^1.41.1"
+pandas = "^2.2.3"
+ydata-profiling = "^4.12.1"
+geopy = "^2.4.1"
 
 [tool.poetry.group.notebook.dependencies]
 jupyterlab = "^4.3.1"
@@ -34,13 +40,6 @@ ruff = "^0.8.0"
 pre-commit = "^4.0.1"
 
 
-[tool.poetry.group.frontend.dependencies]
-streamlit = "^1.41.1"
-pandas = "^2.2.3"
-ydata-profiling = "^4.12.1"
-seaborn = "^0.13.2"
-geopy = "^2.4.1"
-folium = "^0.19.3"
 
 [build-system]
 requires = ["poetry-core"]
